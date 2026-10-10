@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny all document access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global hardened primitive helpers
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['al.arellano135@gmail.com', 'prs.ashiro@gmail.com', 'prs.perplex@gmail.com'] ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Health / boot connection probe
+    match /test/{testId} {
+      allow get: if true;
+    }
+
+    // User Entity Validation Blueprint
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 150)) &&
+             (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 100)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('bloodType' in data) || (data.bloodType is string && data.bloodType.size() <= 20)) &&
+             (!('birthdate' in data) || (data.birthdate is string && data.birthdate.size() <= 30)) &&
+             (!('heightCm' in data) || (data.heightCm is number && data.heightCm >= 0 && data.heightCm <= 350)) &&
+             (!('weightKg' in data) || (data.weightKg is number && data.weightKg >= 0 && data.weightKg <= 600)) &&
+             (!('city' in data) || (data.city is string && data.city.size() <= 120)) &&
+             (!('address' in data) || (data.address is string && data.address.size() <= 300)) &&
+             (!('role' in data) || (data.role in ['citizen', 'responder'])) &&
+             (!('agency' in data) || (data.agency is string && data.agency.size() <= 100)) &&
+             (!('badgeNumber' in data) || (data.badgeNumber is string && data.badgeNumber.size() <= 50)) &&
+             (!('responderRole' in data) || (data.responderRole is string && data.responderRole.size() <= 100)) &&
+             (!('station' in data) || (data.station is string && data.station.size() <= 300)) &&
+             (!('vehicleUnit' in data) || (data.vehicleUnit is string && data.vehicleUnit.size() <= 50)) &&
+             (!('callSign' in data) || (data.callSign is string && data.callSign.size() <= 50)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1000000)) &&
+             (!('allergies' in data) || (data.allergies is list && data.allergies.size() <= 100)) &&
+             (!('emergencyContact' in data) || (data.emergencyContact is map)) &&
+             (!('emergencyCircle' in data) || (data.emergencyCircle is list && data.emergencyCircle.size() <= 50));
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isSignedIn());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming());
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUser(incoming());
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Incident Entity Validation Blueprint
+    function isValidIncident(data) {
+      return data.code is string && data.code.size() <= 30 &&
+             data.type is string && data.type.size() <= 120 &&
+             data.priority in ['critical', 'urgent', 'standard'] &&
+             data.status in ['pending', 'dispatched', 'en_route', 'on_scene', 'cancelled', 'completed'] &&
+             data.location is string && data.location.size() <= 300 &&
+             (!('details' in data) || (data.details is string && data.details.size() <= 1000));
+    }
+
+    // Emergency CAD Incidents Collection
+    match /incidents/{incidentId} {
+      allow get, list: if isSignedIn();
+      allow create: if isValidId(incidentId) && isValidIncident(incoming());
+      allow update: if isValidId(incidentId) && isSignedIn() && isValidIncident(incoming()) && (
+        isAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'details', 'recommendedUnit', 'service', 'targetResponderId', 'acceptedUnit', 'declinedBy', 'etaMins', 'distanceKm', 'routeAlgorithm'
+        ])
+      );
+      allow delete: if isValidId(incidentId) && isAdmin();
+    }
+
+
+
+    // Allergies Master Catalog Entity Blueprint
+    function isValidAllergy(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 60));
+    }
+
+    // Allergies Catalog Collection (Accessible publicly for medical allergen reference)
+    match /allergies_catalog/{allergyId} {
+      allow get, list: if true;
+      allow create: if isValidId(allergyId) && isSignedIn() && isValidAllergy(incoming());
+      allow update, delete: if isValidId(allergyId) && isAdmin();
+    }
+  }
+}

@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer utilities {
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+/* Hide scrollbars globally while preserving scroll functionality */
+* {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+::selection {
+  background-color: #F9E8EC;
+  color: #B41A46;
+}
+
+html, body {
+  overscroll-behavior-y: none;
+}
+
+/* Leaflet DivIcon and Tooltip custom enhancements */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.serd-marker-tag {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+  transform-origin: bottom center;
+}
+
+.leaflet-tooltip.serd-map-tooltip {
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  font-family: inherit;
+}
+
+.leaflet-tooltip.serd-map-tooltip::before {
+  border-top-color: #0f172a;
+}

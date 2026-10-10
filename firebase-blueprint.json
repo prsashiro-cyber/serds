@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with personal medical info, emergency contacts, or responder credentials.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["citizen", "dispatcher", "responder"] },
+        "phone": { "type": "string", "maxLength": 30 },
+        "bloodType": { "type": "string", "maxLength": 20 },
+        "birthdate": { "type": "string", "maxLength": 30 },
+        "heightCm": { "type": "number" },
+        "weightKg": { "type": "number" },
+        "city": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 300 },
+        "allergies": { "type": "array" },
+        "emergencyContact": { "type": "object" },
+        "emergencyCircle": { "type": "array" },
+        "agency": { "type": "string", "maxLength": 100 },
+        "badgeNumber": { "type": "string", "maxLength": 50 },
+        "responderRole": { "type": "string", "maxLength": 100 },
+        "station": { "type": "string", "maxLength": 120 },
+        "vehicleUnit": { "type": "string", "maxLength": 50 },
+        "callSign": { "type": "string", "maxLength": 50 },
+        "avatarUrl": { "type": "string", "maxLength": 1000000 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Emergency CAD incident report and live dispatch status.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 30 },
+        "type": { "type": "string", "maxLength": 120 },
+        "priority": { "type": "string", "enum": ["critical", "urgent", "standard"] },
+        "location": { "type": "string", "maxLength": 300 },
+        "reportedTime": { "type": "string", "maxLength": 30 },
+        "patientName": { "type": "string", "maxLength": 100 },
+        "recommendedUnit": { "type": "string", "maxLength": 100 },
+        "service": { "type": "string", "enum": ["ambulance", "police", "fire"] },
+        "targetResponderId": { "type": "string", "maxLength": 100 },
+        "acceptedUnit": { "type": "string", "maxLength": 100 },
+        "declinedBy": { "type": "array" },
+        "distanceKm": { "type": "number" },
+        "etaMins": { "type": "number" },
+        "routeAlgorithm": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["pending", "dispatched", "en_route", "on_scene", "cancelled", "completed"] },
+        "coords": { "type": "array" },
+        "details": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["code", "type", "priority", "location", "status"]
+    },
+    "SafetyBroadcast": {
+      "title": "SafetyBroadcast",
+      "description": "Safety check-in broadcast sent to emergency contacts.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "callerName": { "type": "string", "maxLength": 100 },
+        "recipientsNotified": { "type": "number" },
+        "status": { "type": "string", "maxLength": 50 },
+        "createdAtIso": { "type": "string", "maxLength": 50 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["callerName", "status"]
+    },
+    "AllergyCatalogItem": {
+      "title": "AllergyCatalogItem",
+      "description": "Catalog item for allergen selection.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents keyed by Firebase Auth UID."
+    },
+    "/incidents/{incidentId}": {
+      "schema": "Incident",
+      "description": "CAD incident entries created during emergency alerts or SOS dispatches."
+    },
+    "/safetyBroadcasts/{broadcastId}": {
+      "schema": "SafetyBroadcast",
+      "description": "Safety broadcast records log."
+    },
+    "/allergies_catalog/{allergyId}": {
+      "schema": "AllergyCatalogItem",
+      "description": "Catalog of common allergens for medical profile tagging."
+    }
+  }
+}

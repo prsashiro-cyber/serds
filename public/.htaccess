@@ -1,0 +1,30 @@
+# Apache .htaccess configuration for React Single Page Application (SPA)
+# Place this in Apache document root or htdocs directory
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Allow direct access to existing files, directories, and assets
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Route all other requests to index.html for client-side routing
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Enable CORS headers if accessed cross-origin
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept"
+</IfModule>
+
+# MIME type handling
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType text/css .css
+  AddType image/svg+xml .svg
+  AddType application/json .json
+</IfModule>
