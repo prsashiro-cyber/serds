@@ -42,6 +42,7 @@ interface MapScreenProps {
   autoDispatch?: boolean;
   initialIncidentId?: string | null;
   onBack?: () => void;
+  onCancelDispatch?: () => void;
 }
 
 // Citizen Marker on Map
@@ -151,10 +152,13 @@ function MapAutoCenter({ center }: { center: [number, number] }) {
   return null;
 }
 
-export default function MapScreen({ autoDispatch, initialIncidentId, onBack }: MapScreenProps) {
+export default function MapScreen({ autoDispatch, initialIncidentId, onBack, onCancelDispatch }: MapScreenProps) {
   const { currentUser, userProfile } = useAuth();
   const { settings, updateLocation } = useUserSettings();
   const { location, profile } = settings;
+
+  const hasAutoDispatchedRef = useRef<boolean>(false);
+  const isCancelledRef = useRef<boolean>(false);
 
   // Real Citizen Device Location
   const [citizenLocation, setCitizenLocation] = useState<[number, number] | null>(() => {
@@ -269,10 +273,33 @@ export default function MapScreen({ autoDispatch, initialIncidentId, onBack }: M
   useEffect(() => {
     let isSubscribed = true;
 
+    const mergeWithLocal = (incoming: LiveOnlineResponder[]) => {
+      const combined = [...incoming];
+      try {
+        const localCached = localStorage.getItem('serd_latest_online_responder');
+        if (localCached) {
+          const parsed = JSON.parse(localCached);
+          if (parsed && parsed.id && parsed.status !== 'offline') {
+            const age = Date.now() - (parsed.timestamp || 0);
+            if (age < 600000) { // 10 minutes valid
+              const existingIdx = combined.findIndex(r => r.id === parsed.id);
+              if (existingIdx >= 0) {
+                // Keep freshest data
+                combined[existingIdx] = { ...combined[existingIdx], ...parsed };
+              } else {
+                combined.push(parsed);
+              }
+            }
+          }
+        }
+      } catch {}
+      return combined;
+    };
+
     const fetchFleet = () => {
       fetchOnlineResponders(citizenLocation || undefined).then(list => {
         if (isSubscribed && list) {
-          setOnlineResponders(list);
+          setOnlineResponders(mergeWithLocal(list));
         }
       });
     };
@@ -280,19 +307,44 @@ export default function MapScreen({ autoDispatch, initialIncidentId, onBack }: M
     fetchFleet();
     const interval = setInterval(fetchFleet, 3000);
 
+    const handleFocusOrVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchFleet();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+    window.addEventListener('focus', handleFocusOrVisibility);
+
     const socket = io();
     socket.on('responders-sync', (fleet: LiveOnlineResponder[]) => {
       if (isSubscribed && fleet) {
-        setOnlineResponders(fleet);
+        setOnlineResponders(mergeWithLocal(fleet));
       }
     });
 
     return () => {
       isSubscribed = false;
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
+      window.removeEventListener('focus', handleFocusOrVisibility);
       socket.disconnect();
     };
   }, [citizenLocation]);
+
+  // Auto-switch service if currently selected service has 0 units but another has online units
+  useEffect(() => {
+    if (isDispatched) return;
+    if (onlineResponders.length > 0) {
+      const currentHasAny = onlineResponders.some(r => r.apparatus === selectedService && r.status !== 'offline');
+      if (!currentHasAny) {
+        const firstActive = onlineResponders.find(r => r.status !== 'offline');
+        if (firstActive) {
+          setSelectedService(firstActive.apparatus);
+        }
+      }
+    }
+  }, [onlineResponders, selectedService, isDispatched]);
 
   // Active target responder: ONLY defined when citizen or dispatch has chosen a specific unit
   const activeTargetResponder = useMemo<LiveOnlineResponder | null>(() => {
@@ -377,14 +429,15 @@ export default function MapScreen({ autoDispatch, initialIncidentId, onBack }: M
 
   // Auto-dispatch if requested from Home hold countdown and not already active
   useEffect(() => {
-    if (autoDispatch && !isDispatched && !activeIncidentId && citizenLocation) {
+    if (autoDispatch && !hasAutoDispatchedRef.current && !isCancelledRef.current && !isDispatched && !activeIncidentId && citizenLocation) {
+      hasAutoDispatchedRef.current = true;
       triggerDispatch();
     }
   }, [autoDispatch, isDispatched, activeIncidentId, citizenLocation]);
 
   // Synchronize initialIncidentId if passed dynamically
   useEffect(() => {
-    if (initialIncidentId) {
+    if (initialIncidentId && !isCancelledRef.current) {
       setActiveIncidentId(initialIncidentId);
       setIsDispatched(true);
     }
@@ -500,16 +553,22 @@ export default function MapScreen({ autoDispatch, initialIncidentId, onBack }: M
     };
   }, [activeIncidentId, citizenLocation]);
 
-  const handleCancelDispatch = () => {
-    if (activeIncidentId) {
-      updateIncidentStatus(activeIncidentId, 'cancelled');
-    }
+  const handleCancelDispatch = async () => {
+    isCancelledRef.current = true;
+    hasAutoDispatchedRef.current = true;
+    const incId = activeIncidentId;
     setIsDispatched(false);
     setActiveIncidentId(null);
     setDispatchedResponder(null);
     setRouteResult(null);
     setRoutePoints([]);
     playChime(440, 330);
+    if (onCancelDispatch) {
+      onCancelDispatch();
+    }
+    if (incId) {
+      await updateIncidentStatus(incId, 'cancelled');
+    }
   };
 
   const handleSendCommsMessage = async (e: React.FormEvent) => {

@@ -49,14 +49,16 @@ async function startServer() {
     const now = Date.now();
     const active: OnlineResponder[] = [];
     for (const [id, r] of onlineResponders.entries()) {
-      // Retain responder for up to 45 seconds between heartbeats
-      if (now - r.lastSeen <= 45000 && r.status !== 'offline') {
+      // Retain responder for up to 10 minutes (600,000ms) between heartbeats for mobile/background stability
+      if (now - r.lastSeen <= 600000 && r.status !== 'offline') {
         let coords = r.coords;
         if ((!coords || (coords[0] === 0 && coords[1] === 0)) && refCoords && refCoords[0] !== 0) {
           coords = [refCoords[0] + 0.005, refCoords[1] + 0.005];
+        } else if (!coords || (coords[0] === 0 && coords[1] === 0)) {
+          coords = [14.5995, 120.9842];
         }
         active.push({ ...r, coords });
-      } else if (now - r.lastSeen > 60000) {
+      } else if (now - r.lastSeen > 900000) {
         onlineResponders.delete(id);
       }
     }

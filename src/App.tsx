@@ -137,6 +137,10 @@ export default function App() {
                 setActiveEmergencyIncidentId(null);
                 setActiveTab('home');
               }} 
+              onCancelDispatch={() => {
+                setMapAutoDispatch(false);
+                setActiveEmergencyIncidentId(null);
+              }}
             />
           )}
           {activeTab === 'contacts' && <Contacts onNavigate={handleNavigate} />}
@@ -155,6 +159,10 @@ export default function App() {
               setCurrentScreen('main');
               setActiveTab('home');
             }} 
+            onCancelDispatch={() => {
+              setMapAutoDispatch(false);
+              setActiveEmergencyIncidentId(null);
+            }}
           />
         </MainLayout>
       )}

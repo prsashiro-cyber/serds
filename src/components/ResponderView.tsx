@@ -503,6 +503,8 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
   })();
 
   // Broadcast live responder presence and apparatus to server & Citizen MapScreen
+  const latestPresenceRef = useRef<any>(null);
+
   const broadcastPresence = () => {
     let coordsToSend = currentVehicleCoords;
     if (!coordsToSend || (coordsToSend[0] === 0 && coordsToSend[1] === 0)) {
@@ -517,10 +519,20 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
       callSign: callSign || (apparatus === 'police' ? 'Patrol Cruiser' : apparatus === 'fire' ? 'Rescue Engine' : 'Medic Unit'),
       apparatus,
       status: mode,
-      coords: coordsToSend || [0, 0],
+      coords: coordsToSend || [14.5995, 120.9842],
       accuracy: gpsAccuracy || 10,
       phone: userProfile?.phone || ''
     };
+
+    latestPresenceRef.current = payload;
+
+    // Cache locally for instant multi-tab sync
+    try {
+      localStorage.setItem('serd_latest_online_responder', JSON.stringify({
+        ...payload,
+        timestamp: Date.now()
+      }));
+    } catch {}
 
     if (socketRef.current?.connected) {
       socketRef.current.emit('responder-presence', payload);
@@ -528,18 +540,32 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
     syncResponderPresence(payload).catch(() => {});
   };
 
-  // Immediate presence broadcast on property changes
+  // Immediate presence broadcast when key profile or status changes
   useEffect(() => {
     broadcastPresence();
-  }, [apparatus, callSign, mode, currentVehicleCoords, gpsAccuracy, userProfile]);
+  }, [apparatus, callSign, mode, userProfile?.uid]);
 
-  // Periodic heartbeat broadcast every 3 seconds to keep server & citizen map live
+  // Continuous background heartbeat every 3 seconds - does NOT reset on every coordinate jitter
   useEffect(() => {
     const timer = setInterval(() => {
       broadcastPresence();
     }, 3000);
-    return () => clearInterval(timer);
-  }, [apparatus, callSign, mode, currentVehicleCoords, gpsAccuracy, userProfile]);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        broadcastPresence();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, []);
 
   // Responder-selected drop-off destination
   const [dropoffDestination, setDropoffDestination] = useState<{
